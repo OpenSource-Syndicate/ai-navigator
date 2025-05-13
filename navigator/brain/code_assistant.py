@@ -1,6 +1,7 @@
 # Code Assistant: Uses Granite-Code LLM for code generation and automation logic.
 from typing import Dict, Any, Optional, List
 from rich.console import Console
+import json
 
 console = Console()
 
@@ -42,17 +43,19 @@ class CodeAssistant:
         page_content_sample = page_content[:3000] + "..." if len(page_content) > 3000 else page_content
         
         prompt = (
-            "Generate Python code using Selenium to accomplish the following task:\n\n"
-            f"GOAL: {goal}\n\n"
-            f"CURRENT URL: {current_url}\n\n"
-            f"PREVIOUS ACTIONS:\n{previous_actions_text}\n\n"
-            f"PAGE CONTENT SAMPLE:\n{page_content_sample}\n\n"
-            "Important requirements:\n"
-            "1. Use reliable selectors (prefer IDs, then CSS selectors, XPath as last resort)\n"
-            "2. Include proper waits and error handling\n"
-            "3. Return only executable Python code without explanations\n"
-            "4. Use driver as the WebDriver variable name\n"
-            "5. Ensure the code is complete and can run independently\n"
+            "You are Granite-Code, an expert AI assistant specializing in writing Selenium automation scripts in Python. "
+            "Generate Python code using Selenium to accomplish the following task:\\n\\n"
+            f"GOAL: {goal}\\n\\n"
+            f"CURRENT URL: {current_url}\\n\\n"
+            f"PREVIOUS ACTIONS:\\n{previous_actions_text}\\n\\n"
+            f"PAGE CONTENT SAMPLE (first 3000 chars):\\n{page_content_sample}\\n\\n"
+            "Important requirements:\\n"
+            "1. Use reliable selectors (prefer IDs, then CSS selectors, XPath as last resort).\\n"
+            "2. Include explicit waits (WebDriverWait) for elements to be present or clickable before interacting. DO NOT use implicit waits or time.sleep().\\n"
+            "3. Return ONLY executable Python code. Do not include any explanations, comments, introductory text, or markdown formatting like ```python. Just the raw code.\\n"
+            "4. Assume the WebDriver instance is already created and available in a variable named `driver`.\\n"
+            "5. Ensure the generated code snippet is complete and can run independently within an environment where `driver` exists.\\n"
+            "6. Import necessary Selenium modules (e.g., By, Keys, WebDriverWait, expected_conditions as EC).\\n"
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")
@@ -73,10 +76,11 @@ class CodeAssistant:
             Fixed code
         """
         prompt = (
-            "Fix the following Python code that has an error:\n\n"
-            f"CODE:\n```python\n{code}\n```\n\n"
-            f"ERROR MESSAGE: {error_message}\n\n"
-            "Return only the fixed code without explanations."
+            "You are Granite-Code, an expert AI assistant specializing in debugging Python code. "
+            "Fix the following Python code snippet that produced an error:\\n\\n"
+            f"CODE WITH ERROR:\\n```python\\n{code}\\n```\\n\\n"
+            f"ERROR MESSAGE: {error_message or 'No error message provided.'}\\n\\n"
+            "Return ONLY the fixed, complete Python code snippet. Do not include explanations or markdown formatting."
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")
@@ -99,13 +103,15 @@ class CodeAssistant:
             Code that replays the API request
         """
         prompt = (
-            f"Generate Python code using the {use_library} library to replay this API request:\n\n"
-            f"```\n{request_data}\n```\n\n"
-            "The code should:\n"
-            "1. Include all necessary imports\n"
-            "2. Preserve all headers and parameters exactly\n"
-            "3. Handle the response appropriately\n"
-            "4. Be well-structured and maintainable\n"
+            f"You are Granite-Code, an expert AI assistant specializing in writing Python code to interact with APIs. "
+            f"Generate Python code using the `{use_library}` library to replay this API request:\\n\\n"
+            f"REQUEST DETAILS:\\n```json\\n{json.dumps(request_data, indent=2)}\\n```\\n\\n"
+            "The generated code should:\\n"
+            "1. Include all necessary imports for the `{use_library}` library.\\n"
+            "2. Accurately reproduce the request method, URL, headers, and body/payload.\\n"
+            "3. Include basic handling for the response (e.g., print status code and response body).\\n"
+            "4. Be well-structured and easy to understand.\\n"
+            f"Return ONLY executable Python code for the `{use_library}` library. Do not include explanations or markdown formatting."
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")

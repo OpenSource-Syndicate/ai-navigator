@@ -114,12 +114,15 @@ class Navigator:
         
         # Get summary from Hermes
         prompt = (
-            f"Summarize what was learned while pursuing this goal: '{user_goal}'\n\n"
-            f"{api_info}\n"
-            "Focus on:\n"
-            "1. What was accomplished\n"
-            "2. What APIs or patterns were discovered\n"
-            "3. What might be useful for future automation\n"
+            f"You are Hermes-3, an expert AI assistant skilled at summarizing information. "
+            f"Summarize what was learned while pursuing this web automation goal: '{user_goal}'.\\n\\n"
+            f"Context:\\n"
+            f"{api_info}\\n"
+            f"Focus your summary on these key aspects:\\n"
+            f"1. What was the primary outcome or accomplishment related to the goal?\\n"
+            f"2. What specific API patterns, request structures, or key UI elements were discovered or interacted with?\\n"
+            f"3. What insights or learned patterns could be useful for future automation tasks related to this website or goal?\\n"
+            f"Keep the summary concise and informative."
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="general")

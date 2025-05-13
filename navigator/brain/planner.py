@@ -56,16 +56,19 @@ class TaskPlanner:
                 api_history_str += f"{i+1}. {api.get('method', 'Unknown')} {api.get('url', 'Unknown')}\n"
         
         prompt = (
-            "As Hermes-3, create a detailed step-by-step plan to achieve this web automation goal:\n\n"
-            f"GOAL: {user_goal}\n\n"
-            f"CURRENT STATE:\n- URL: {current_url or 'No current URL'}\n- Page content sample: {page_content_sample}\n\n"
-            f"{api_history_str}\n\n"
-            "Your plan should:\n"
-            "1. Break down the goal into clear, executable steps\n"
-            "2. Identify key UI elements that need to be interacted with\n"
-            "3. Anticipate potential challenges and include fallback approaches\n"
-            "4. Consider the most efficient path to the goal\n"
-            "5. Structure your response as a numbered list of steps\n"
+            "You are Hermes-3, an expert AI assistant specializing in web automation planning. "
+            "Your task is to create a precise and actionable step-by-step plan to achieve the given web automation goal. "
+            "The steps in your plan will be executed using Python and the Selenium library to control a web browser. "
+            "Consider the current state of the browser and any past API interactions to inform your plan.\\n\\n"
+            f"GOAL: {user_goal}\\n\\n"
+            f"CURRENT STATE:\\n- URL: {current_url or 'No current URL'}\\n- Page content sample (first 1500 chars): {page_content_sample}\\n"
+            f"{api_history_str}\\n\\n"
+            "Your plan should:\\n"
+            "1. Break down the goal into small, clear, and individually executable steps (e.g., 'Navigate to URL', 'Type text into input field with name X', 'Click button with text Y').\\n"
+            "2. For each step, identify the specific UI elements to interact with (e.g., by name, ID, text, or CSS selector if obvious from page content sample).\\n"
+            "3. Anticipate potential challenges (e.g., element not found, unexpected pop-up) and briefly suggest fallback approaches or checks.\\n"
+            "4. Ensure the plan follows the most efficient path to the goal.\\n"
+            "5. Structure your response STRICTLY as a numbered list of steps. Do not include any preamble or a-conclusion.\\n"
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="general")
@@ -91,15 +94,17 @@ class TaskPlanner:
         page_content_sample = page_content[:3000] + "..." if len(page_content) > 3000 else page_content
         
         prompt = (
-            "Analyze this webpage UI and identify key interactive elements.\n\n"
-            f"URL: {current_url or 'No URL'}\n\n"
-            f"PAGE CONTENT:\n{page_content_sample}\n\n"
-            "Provide a structured analysis that includes:\n"
-            "1. Main purpose of this page\n"
-            "2. Key interactive elements (buttons, forms, links) and their likely functions\n"
-            "3. Navigation options available\n"
-            "4. Any authentication or input requirements\n"
-            "5. Overall page structure\n"
+            "You are Hermes-3, an expert AI assistant specializing in web page analysis. "
+            "Analyze the provided webpage UI content and identify key interactive elements and their purpose.\\n\\n"
+            f"URL: {current_url or 'No URL provided'}\\n\\n"
+            f"PAGE CONTENT (first 3000 chars):\\n{page_content_sample}\\n\\n"
+            "Provide a structured analysis that includes:\\n"
+            "1. The main purpose or objective of this page (e.g., 'Login form', 'Product search results', 'Article display').\\n"
+            "2. Key interactive elements (e.g., buttons, forms, input fields, links) and their likely functions. Be specific (e.g., 'Button with text \\'Submit\\'', 'Input field with name \\'username\\'').\\n"
+            "3. Main navigation options available on the page (e.g., 'Header navigation links: Home, About, Contact', 'Sidebar menu with categories').\\n"
+            "4. Any apparent authentication requirements or input forms (e.g., 'Login form with username and password fields', 'Search bar').\\n"
+            "5. A brief summary of the overall page structure or layout.\\n"
+            "Respond ONLY with the structured analysis, starting with point 1."
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="general")
@@ -140,14 +145,17 @@ class TaskPlanner:
         steps_completed_str = "\n".join([f"{i+1}. {step}" for i, step in enumerate(steps_completed)])
         
         prompt = (
-            "An error occurred during web automation. Help create a recovery plan.\n\n"
-            f"ORIGINAL GOAL: {original_goal}\n\n"
-            f"STEPS COMPLETED:\n{steps_completed_str or 'No steps completed'}\n\n"
-            f"ERROR: {error_context}\n\n"
-            "Please provide:\n"
-            "1. Analysis of what might have gone wrong\n"
-            "2. Alternate approaches to try\n"
-            "3. A new step-by-step plan to continue toward the original goal\n"
+            "You are Hermes-3, an expert AI assistant specializing in troubleshooting web automation errors. "
+            "An error occurred during a web automation task that uses Python and Selenium. Help create a recovery plan.\\n\\n"
+            f"ORIGINAL GOAL: {original_goal}\\n\\n"
+            f"STEPS COMPLETED BEFORE ERROR:\\n{steps_completed_str or 'No steps were completed.'}\\n\\n"
+            f"ERROR CONTEXT: {error_context}\\n\\n"
+            "Please provide a concise recovery strategy focusing on:\\n"
+            "1. A brief analysis of what likely went wrong based on the error and context (consider Selenium-specific issues like element locators, waits, or page changes).\\n"
+            "2. One or two practical alternate approaches to try using Selenium, or how to adjust the failed Selenium step.\\n"
+            "3. A new, short, step-by-step plan (max 3-4 steps) using Selenium actions to continue towards the original goal, starting from the point of recovery. "
+            "If the goal seems unachievable with the current error, suggest a revised, achievable sub-goal.\\n"
+            "Structure your response clearly with these three numbered points."
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="general")

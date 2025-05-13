@@ -1,4 +1,4 @@
-# Ultimate AI - Web Navigator
+#  AI - Web Navigator
 
 This project implements an intelligent web navigation and automation system using a multi-model Large Language Model (LLM) architecture. It can understand user goals expressed in natural language, plan and execute web browsing tasks, interact with web elements, analyze network requests, and learn from its interactions.
 
@@ -30,8 +30,8 @@ These models are coordinated by the **Navigator Orchestrator (`navigator/orchest
 
 1.  **Clone the repository:**
     ```bash
-    git clone <repository-url>
-    cd ultimate-ai
+    git clone https://github.com/Likhithsai2580/ai-navigator
+    cd ai-navigator
     ```
 
 2.  **Install dependencies:**

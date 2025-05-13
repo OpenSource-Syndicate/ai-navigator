@@ -1,5 +1,8 @@
 # Task Planner: Uses Hermes-3 LLM for high-level planning and reasoning.
 from typing import List, Dict, Any, Optional
+from rich.console import Console
+
+console = Console()
 
 class TaskPlanner:
     def __init__(self, ollama_client):
@@ -66,6 +69,7 @@ class TaskPlanner:
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="general")
+        console.print(f"DEBUG: Raw response from planner model: [yellow]{response}[/yellow]")
         return response.get('response', '')
     
     async def analyze_ui(self, page_content: str, current_url: str = "") -> Dict[str, Any]:

@@ -16,6 +16,9 @@ from navigator.brain.planner import TaskPlanner
 from navigator.brain.api_reverse_engineer import APIReverseEngineer
 from navigator.memory.semantic_indexer import SemanticIndexer
 from core.plugins.apis.ollama_client import OllamaClient
+from rich.console import Console
+
+console = Console()
 
 class WebNavigator:
     def __init__(
@@ -39,41 +42,48 @@ class WebNavigator:
         self.action_history: List[str] = []
         self.captured_apis: List[Dict[str, Any]] = []
 
-    async def navigate_and_learn(self, user_goal: str):
-        """Main loop for navigating, understanding, and learning from web interactions."""
-        print(f"Starting navigation with goal: {user_goal}")
+    async def navigate_and_learn(self, user_goal: str, plan: Optional[str] = None):
+        """Main loop for navigating, understanding, and learning from web interactions based on a provided plan."""
+        console.print(f"WebNavigator starting with goal: [bold green]{user_goal}[/bold green]")
+        if plan:
+            console.print(f"Executing provided plan:\n[yellow]{plan}[/yellow]")
+        else:
+            console.print("[yellow]No plan provided, will attempt default behaviors or generate one if necessary.[/yellow]")
+            # Optionally, you could decide to call self.planner.create_detailed_plan here
+            # if a plan is *strictly* required and not provided, but for now we adapt.
 
         try:
-            # 1. Task Planning with Hermes-3
-            plan = await self.planner.create_detailed_plan(
-                user_goal=user_goal,
-                current_url=self.current_url,
-                page_content=self.page_content,
-                api_history=self.captured_apis
-            )
-            print(f"Detailed Plan:\n{plan}")
+            # 1. Task Planning with Hermes-3 (Removed - plan is now passed in)
+            # plan = await self.planner.create_detailed_plan(
+            #     user_goal=user_goal,
+            #     current_url=self.current_url,
+            #     page_content=self.page_content,
+            #     api_history=self.captured_apis
+            # )
+            # print(f"Detailed Plan:\n{plan}")
             
-            # Add plan to semantic memory
-            await self.semantic_indexer.add_to_memory(
-                item_id=f"plan_{len(self.action_history)}",
-                text_content=f"Plan for goal: {user_goal}\n{plan}",
-                metadata={"type": "plan", "goal": user_goal}
-            )
+            # Add plan to semantic memory (if a plan was provided and is meaningful)
+            if plan and plan.strip():
+                await self.semantic_indexer.add_to_memory(
+                    item_id=f"plan_{len(self.action_history)}",
+                    text_content=f"Plan for goal: {user_goal}\n{plan}",
+                    metadata={"type": "plan", "goal": user_goal}
+                )
             
-            # 2. Parse the plan into steps (simplified implementation)
-            plan_steps = [step.strip() for step in plan.split("\n") if step.strip()]
+            # 2. Parse the plan into steps
+            plan_steps = [step.strip() for step in (plan or "").split("\n") if step.strip()]
             
             # If plan is empty or doesn't have clear steps, implement a default behavior for common actions
             if not plan_steps:
-                print("No clear plan steps detected. Implementing default behavior.")
+                console.print("[yellow]No clear plan steps detected. Implementing default behavior.[/yellow]")
                 
                 # Default behavior for search-related tasks
                 if any(term in user_goal.lower() for term in ["search", "find", "look up", "google", "check"]):
-                    print("Detected search intent. Implementing default search behavior.")
+                    console.print("[cyan]Detected search intent. Implementing default search behavior.[/cyan]")
                     search_term = user_goal.lower().replace("search", "").replace("find", "").replace("look up", "").replace("google", "").replace("check", "").strip()
                     
-                    # Go to Google
-                    await self.go_to_url("https://www.google.com")
+                    # Go to DuckDuckGo
+                    await self.go_to_url("https://duckduckgo.com/")
                     
                     # Try to search
                     if self.selenium_manager.driver:
@@ -94,14 +104,14 @@ search_input.send_keys(Keys.RETURN)
                             """.replace("{search_term}", search_term)
                             
                             await self.execute_selenium_code(search_code)
-                            self.action_history.append(f"DEFAULT: Searched for '{search_term}' on Google")
+                            self.action_history.append(f"DEFAULT: Searched for '{search_term}' on DuckDuckGo")
                             return
                         except Exception as e:
-                            print(f"Error executing default search: {e}")
+                            console.print(f"[red]Error executing default search: {e}[/red]")
             
             # 3. Execute each step
             for i, step in enumerate(plan_steps):
-                print(f"Executing step {i+1}: {step}")
+                console.print(f"Executing step {i+1}: [bold]{step}[/bold]")
                 
                 # Record the step we're attempting
                 self.action_history.append(f"PLAN STEP: {step}")
@@ -143,11 +153,11 @@ search_input.send_keys(Keys.RETURN)
                         }
                     )
             
-            print("Navigation and learning process complete.")
+            console.print("[bold green]Navigation and learning process complete.[/bold green]")
             
         except Exception as e:
             error_trace = traceback.format_exc()
-            print(f"Error during navigation: {e}\n{error_trace}")
+            console.print(f"[bold red]Error during navigation: {e}[/bold red]\n{error_trace}")
             
             # Use Hermes to generate recovery plan
             recovery_plan = await self.planner.handle_error(
@@ -155,13 +165,13 @@ search_input.send_keys(Keys.RETURN)
                 original_goal=user_goal,
                 steps_completed=self.action_history
             )
-            print(f"Recovery Plan:\n{recovery_plan}")
+            console.print(f"Recovery Plan:\n[yellow]{recovery_plan}[/yellow]")
             
             # Implement a simple default behavior for common goals if we've encountered an error
             if any(term in user_goal.lower() for term in ["search", "find", "look up", "google", "check"]):
-                print("Error occurred. Trying direct search as fallback.")
+                console.print("[yellow]Error occurred. Trying direct search as fallback.[/yellow]")
                 search_term = user_goal.lower().replace("search", "").replace("find", "").replace("look up", "").replace("google", "").replace("check", "").strip()
-                search_url = f"https://www.google.com/search?q={search_term.replace(' ', '+')}"
+                search_url = f"https://duckduckgo.com/?q={search_term.replace(' ', '+')}"
                 await self.go_to_url(search_url)
 
     async def execute_step_with_code_generation(self, step_description: str):
@@ -181,7 +191,7 @@ search_input.send_keys(Keys.RETURN)
         try:
             await self.execute_selenium_code(selenium_code)
         except Exception as e:
-            print(f"Error executing generated code: {e}")
+            console.print(f"[red]Error executing generated code: {e}[/red]")
             # Try to fix the code
             fixed_code = await self.code_assistant.fix_code(
                 code=selenium_code,
@@ -193,13 +203,13 @@ search_input.send_keys(Keys.RETURN)
             try:
                 await self.execute_selenium_code(fixed_code)
             except Exception as e2:
-                print(f"Error executing fixed code: {e2}")
+                console.print(f"[red]Error executing fixed code: {e2}[/red]")
                 # Record the failure
                 self.action_history.append(f"CODE EXECUTION FAILED: {str(e2)}")
 
     async def go_to_url(self, url: str):
         """Navigates to a given URL using Selenium."""
-        print(f"Navigating to: {url}")
+        console.print(f"Navigating to: [link={url}]{url}[/link]")
         try:
             # Make sure driver is created before use
             if not hasattr(self.selenium_manager, 'driver') or self.selenium_manager.driver is None:
@@ -215,9 +225,9 @@ search_input.send_keys(Keys.RETURN)
                 metadata={"url": self.current_url, "type": "webpage_visit"}
             )
             self.action_history.append(f"NAVIGATION: Went to {self.current_url}")
-            print(f"Successfully navigated to: {self.current_url}")
+            console.print(f"Successfully navigated to: [link={self.current_url}]{self.current_url}[/link]")
         except Exception as e:
-            print(f"Error navigating to {url}: {e}")
+            console.print(f"[red]Error navigating to {url}: {e}[/red]")
             self.action_history.append(f"NAVIGATION ERROR: {str(e)}")
 
     async def process_and_store_api_request(self, request_data: Dict[str, Any], response_data: Optional[Dict[str, Any]] = None):
@@ -225,14 +235,14 @@ search_input.send_keys(Keys.RETURN)
         Analyzes a captured API request using APIReverseEngineer, 
         stores it in the database, and adds it to semantic memory.
         """
-        print(f"Processing API request: {request_data.get('method')} {request_data.get('url')}")
+        console.print(f"Processing API request: [bold]{request_data.get('method')}[/bold] [link={request_data.get('url')}]{request_data.get('url')}[/link]")
 
         # 1. Add to captured APIs list for future reference
         self.captured_apis.append(request_data)
 
         # 2. Analyze with APIReverseEngineer (using the enhanced method)
         analysis = await self.api_reverse_engineer.analyze_request_response_pair(request_data, response_data)
-        print(f"API Analysis:\n{analysis}")
+        console.print(f"API Analysis:\n[cyan]{analysis}[/cyan]")
 
         # 3. Store in Database
         db: Session = next(self.db_session_factory())
@@ -249,9 +259,9 @@ search_input.send_keys(Keys.RETURN)
             db.add(db_request)
             db.commit()
             db.refresh(db_request)
-            print(f"API Request stored in DB with ID: {db_request.id}")
+            console.print(f"API Request stored in DB with ID: {db_request.id}")
         except Exception as e:
-            print(f"Error storing API request to DB: {e}")
+            console.print(f"[red]Error storing API request to DB: {e}[/red]")
             db.rollback()
         finally:
             db.close()
@@ -264,7 +274,7 @@ search_input.send_keys(Keys.RETURN)
             text_content=semantic_text,
             metadata={"type": "api_request", "url": request_data.get("url"), "method": request_data.get("method")}
         )
-        print(f"API Request added to semantic memory with ID: {semantic_id}")
+        console.print(f"API Request added to semantic memory with ID: {semantic_id}")
         
         # 5. Add to action history
         self.action_history.append(f"API CAPTURED: {request_data.get('method')} {request_data.get('url')}")
@@ -283,14 +293,14 @@ search_input.send_keys(Keys.RETURN)
         context = f"Current URL: {self.current_url}. Page source (first 1000 chars): {self.page_content[:1000] if self.page_content else 'N/A'}"
         prompt = f"Generate Python Selenium code to perform the following task on the current webpage:\n{task_description}\nContext: {context}"
         code = await self.code_assistant.generate_code(prompt)
-        print(f"Generated Selenium code:\n{code}")
+        console.print(f"Generated Selenium code:\n[green]{code}[/green]")
         return code
 
     async def execute_selenium_code(self, code_snippet: str):
         """Executes a snippet of Selenium Python code."""
         # DANGER: Executing arbitrary code is a security risk.
         # In a real system, this needs sandboxing and careful validation.
-        print(f"Executing Selenium code (DANGER - UNSAFE):\n{code_snippet}")
+        console.print(f"[bold yellow]Executing Selenium code (DANGER - UNSAFE):[/bold yellow]\n[green]{code_snippet}[/green]")
         try:
             # Make sure driver is created before use
             if not hasattr(self.selenium_manager, 'driver') or self.selenium_manager.driver is None:
@@ -310,10 +320,10 @@ search_input.send_keys(Keys.RETURN)
             # Update current state after execution
             self.current_url = self.selenium_manager.driver.current_url
             self.page_content = self.selenium_manager.driver.page_source
-            print("Selenium code executed successfully.")
+            console.print("[bold green]Selenium code executed successfully.[/bold green]")
             self.action_history.append("CODE EXECUTION: Success")
         except Exception as e:
-            print(f"Error executing Selenium code: {e}")
+            console.print(f"[bold red]Error executing Selenium code: {e}[/bold red]")
             self.action_history.append(f"CODE EXECUTION ERROR: {str(e)}")
             raise
 
@@ -321,14 +331,14 @@ search_input.send_keys(Keys.RETURN)
         """Close the browser session if it exists."""
         if hasattr(self, 'selenium_manager') and self.selenium_manager:
             self.selenium_manager.close_driver()
-            print("Browser closed.")
+            console.print("[dim]Browser closed.[/dim]")
 
 # Example Usage (Illustrative - would be in main.py or a test script)
 async def main_example():
     # This is a placeholder for OllamaClient initialization
     class MockOllamaClient:
         async def generate_text(self, prompt: str, model_type: str):
-            print(f"MockOllamaClient.generate_text called with model_type: {model_type}")
+            console.print(f"MockOllamaClient.generate_text called with model_type: {model_type}")
             if model_type == "coding":
                 return {"response": "print('Selenium code executed') # Placeholder code"}
             elif model_type == "reasoning":
@@ -346,7 +356,7 @@ async def main_example():
     navigator = WebNavigator(ollama_client_mock, selenium_manager_instance)
 
     try:
-        await navigator.go_to_url("https://www.google.com") # Start somewhere
+        await navigator.go_to_url("https://duckduckgo.com/") # Start somewhere
         # await navigator.navigate_and_learn("Find information about Python programming language and then search for images of cats.")
         
         # Simulate finding an API request
@@ -364,7 +374,7 @@ async def main_example():
 
         # Test semantic search
         search_results = await navigator.semantic_indexer.search_memory("information about a specific task or item")
-        print(f"Semantic search results: {search_results}")
+        console.print(f"Semantic search results: {search_results}")
 
         # Test code generation and execution
         # selenium_code = await navigator.generate_selenium_code("Type 'hello world' into the search bar and click the search button.")
@@ -379,4 +389,4 @@ if __name__ == "__main__":
     # This example requires an active database (ultimate_ai.db) and tables created.
     # You would typically run init_db.py first.
     # asyncio.run(main_example())
-    print("WebNavigator class defined. Run example usage from a main script or test.")
+    console.print("WebNavigator class defined. Run example usage from a main script or test.")

@@ -1,8 +1,10 @@
 import httpx
 import os
 from dotenv import load_dotenv
+from rich.console import Console
 
 load_dotenv()
+console = Console()
 
 class OllamaClient:
     def __init__(self):
@@ -30,7 +32,7 @@ class OllamaClient:
         if model_type == "embedding":
             return await self._get_embedding(prompt, model)
             
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=1000.0) as client:
             try:
                 response = await client.post(
                     f"{self.base_url}/generate",
@@ -42,10 +44,10 @@ class OllamaClient:
                 )
                 return response.json()
             except httpx.ReadTimeout:
-                print(f"Ollama server request timed out. Using fallback response.")
+                console.print(f"[yellow]Ollama server request timed out for model '{model}'. Using fallback response.[/yellow]")
                 return {"response": f"[Fallback response - Ollama timeout for {model_type}]"}
             except Exception as e:
-                print(f"Error calling Ollama API: {e}")
+                console.print(f"[red]Error calling Ollama API for model '{model}': {e}[/red]")
                 return {"response": f"[Error response - {str(e)}]"}
     
     def _get_model_for_type(self, model_type: str) -> str:
@@ -78,7 +80,7 @@ class OllamaClient:
             Dictionary containing embedding
         """
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=1000.0) as client:
                 response = await client.post(
                     f"{self.base_url}/embeddings",
                     json={
@@ -90,7 +92,7 @@ class OllamaClient:
                 
                 # Return a simulated embedding if model doesn't support embeddings
                 if "error" in result:
-                    print(f"Embedding error: {result.get('error')}")
+                    console.print(f"[yellow]Embedding error for model '{model}': {result.get('error')}. Generating simulated embedding.[/yellow]")
                     # Create a pseudo-random but deterministic embedding based on the text
                     import hashlib
                     import struct
@@ -115,6 +117,6 @@ class OllamaClient:
                 
                 return result
         except Exception as e:
-            print(f"Error getting embedding: {e}")
+            console.print(f"[red]Error getting embedding for model '{model}': {e}. Returning zero vector.[/red]")
             # Return a zero vector as fallback
             return {"embedding": [0.0] * 768}

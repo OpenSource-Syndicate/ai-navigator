@@ -1,5 +1,8 @@
 # Code Assistant: Uses Granite-Code LLM for code generation and automation logic.
 from typing import Dict, Any, Optional, List
+from rich.console import Console
+
+console = Console()
 
 class CodeAssistant:
     def __init__(self, ollama_client):
@@ -27,6 +30,12 @@ class CodeAssistant:
         Returns:
             Python code that can be executed to achieve the goal
         """
+        # Handle None values
+        if page_content is None:
+            page_content = ""
+        if previous_actions is None:
+            previous_actions = []
+            
         previous_actions_text = "\n".join(previous_actions) if previous_actions else "No previous actions"
         
         # Limit page content to avoid token overflow
@@ -47,6 +56,9 @@ class CodeAssistant:
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")
+        console.print(f"[magenta]Code Assistant generated Selenium code. Goal: {goal}[/magenta]")
+        console.print(f"[dim]Prompt:\n{prompt}[/dim]")
+        console.print(f"[dim]Response:\n{response.get('response', '')}[/dim]")
         return response.get('response', '')
     
     async def fix_code(self, code: str, error_message: str = "") -> str:
@@ -68,6 +80,9 @@ class CodeAssistant:
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")
+        console.print(f"[magenta]Code Assistant attempting to fix code.[/magenta]")
+        console.print(f"[dim]Prompt:\n{prompt}[/dim]")
+        console.print(f"[dim]Response:\n{response.get('response', '')}[/dim]")
         return response.get('response', '')
     
     async def generate_api_replay_code(self, 
@@ -94,4 +109,7 @@ class CodeAssistant:
         )
         
         response = await self.ollama_client.generate_text(prompt, model_type="coding")
+        console.print(f"[magenta]Code Assistant generating API replay code.[/magenta]")
+        console.print(f"[dim]Prompt:\n{prompt}[/dim]")
+        console.print(f"[dim]Response:\n{response.get('response', '')}[/dim]")
         return response.get('response', '')

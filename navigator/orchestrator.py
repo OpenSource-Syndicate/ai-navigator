@@ -7,6 +7,9 @@ from navigator.brain.api_reverse_engineer import APIReverseEngineer
 from navigator.memory.semantic_indexer import SemanticIndexer
 from navigator.web_navigator import WebNavigator
 from core.plugins.selenium_manager import SeleniumManager
+from rich.console import Console
+
+console = Console()
 
 class Navigator:
     def __init__(self, ollama_client, selenium_manager: SeleniumManager = None):
@@ -57,26 +60,34 @@ class Navigator:
         Args:
             user_goal: The user's goal expressed in natural language
         """
-        print(f"Navigator (Orchestrator) received web goal: {user_goal}")
+        console.print(f"Navigator (Orchestrator) received web goal: [bold green]{user_goal}[/bold green]")
         try:
             # Step 1: Initial planning using Hermes-3 via TaskPlanner
-            initial_context = "Starting a new browsing session."
-            initial_plan = await self.planner.plan(user_goal, context=initial_context)
-            print(f"Initial plan:\n{initial_plan}")
+            # Gather context for the detailed plan
+            current_url = self.web_navigator.current_url
+            page_content = self.web_navigator.page_content
+            api_history = self.web_navigator.captured_apis
+
+            detailed_plan = await self.planner.create_detailed_plan(
+                user_goal=user_goal,
+                current_url=current_url,
+                page_content=page_content,
+                api_history=api_history
+            )
+            console.print(f"Detailed plan from Orchestrator:\n[yellow]{detailed_plan}[/yellow]")
             
             # Step 2: Execute the plan using WebNavigator
-            # (which will use all our components internally)
-            await self.web_navigator.navigate_and_learn(user_goal)
+            await self.web_navigator.navigate_and_learn(user_goal, plan=detailed_plan)
             
             # Step 3: Summarize what was learned
             summary = await self.summarize_results(user_goal)
-            print(f"Summary of learnings:\n{summary}")
+            console.print(f"Summary of learnings:\n[cyan]{summary}[/cyan]")
             
         finally:
             # Always ensure browser is closed
             self.web_navigator.close_browser()
         
-        print(f"Navigator (Orchestrator) finished web goal: {user_goal}")
+        console.print(f"Navigator (Orchestrator) finished web goal: [bold green]{user_goal}[/bold green]")
     
     async def summarize_results(self, user_goal: str) -> str:
         """

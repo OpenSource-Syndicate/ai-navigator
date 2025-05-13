@@ -1,89 +1,106 @@
-# Ultimate AI
+# Ultimate AI - Web Navigator
 
-Ultimate AI is a modular, extensible API platform that leverages LLMs (Large Language Models) and web automation to analyze, summarize, and store information from web pages. It is built with FastAPI, SQLAlchemy, and integrates with Ollama for LLM-powered text generation.
+This project implements an intelligent web navigation and automation system using a multi-model Large Language Model (LLM) architecture. It can understand user goals expressed in natural language, plan and execute web browsing tasks, interact with web elements, analyze network requests, and learn from its interactions.
 
-## Features
-- **Analyze Webpages:** Extracts and summarizes content from any URL using Selenium and LLMs.
-- **Flexible LLM Integration:** Supports multiple model types (general, coding, reasoning, embedding) via Ollama.
-- **Persistent Storage:** Saves learned information (topic, content, source) in a local SQLite database.
-- **Modular Plugin System:** Easily extendable for new APIs or automation tasks.
+## Architecture
 
-## Project Structure
-```
-Ultimate-AI/
-├── main.py                  # FastAPI app entry point
-├── init_db.py               # Script to initialize the database
-├── requirements.txt         # Python dependencies
-├── pyproject.toml           # Project metadata
-├── core/
-│   ├── database/
-│   │   ├── database.py      # SQLAlchemy setup
-│   │   └── models.py        # ORM models
-│   └── plugins/
-│       ├── selenium_manager.py   # Web automation & scraping
-│       └── apis/
-│           └── ollama_client.py  # LLM API client
-├── ultimate_ai.db           # SQLite database (auto-created)
-└── .env                     # Model and API configuration
-```
+The system employs a modular, multi-LLM approach inspired by the concepts outlined in `plan.md`. Each LLM specializes in a specific task:
 
-## Requirements
-- Python 3.13+
-- Chrome browser (for Selenium)
-- [Ollama](https://ollama.com/) running locally (default: http://localhost:11434)
+1.  **Task Planner (`Hermes-3` - configured via `GENERAL_TEXT_MODEL` env var):** Receives the user's high-level goal and generates a detailed, step-by-step plan for web navigation and interaction. It considers the current browser state (URL, page content) and past API interactions.
+2.  **Code Assistant (`Granite-Code` - configured via `CODING_MODEL` env var):** Takes individual steps from the plan and generates the corresponding Python code (using Selenium) to execute that action in the browser (e.g., clicking buttons, filling forms). It also assists with fixing code errors and generating API replay scripts.
+3.  **API Reverse Engineer (`DeepSeek-R1` - configured via `REASONING_MODEL` env var):** Analyzes captured HTTP requests and responses during navigation to understand API endpoints, authentication, parameters, and potential automation opportunities.
+4.  **Semantic Indexer (`mxbai-embed-large` - configured via `EMBEDDING_MODEL` env var):** Creates vector embeddings of plans, actions, UI analyses, and captured API requests. This allows for semantic search over the system's memory to find relevant past interactions or similar patterns.
 
-## Installation
-1. **Clone the repository:**
-   ```sh
-   git clone <repo-url>
-   cd Ultimate-AI
-   ```
-2. **Install dependencies:**
-   ```sh
-   pip install -r requirements.txt
-   ```
-3. **Configure environment:**
-   - Edit `.env` to set your LLM model names and API keys as needed.
+These models are coordinated by the **Navigator Orchestrator (`navigator/orchestrator.py`)**, which manages the overall flow: Plan -> Execute (via Code Generation & Selenium) -> Analyze -> Learn (via Indexing).
 
-4. **Initialize the database:**
-   ```sh
-   python init_db.py
-   ```
+**Core Components:**
 
-5. **Run the API server:**
-   ```sh
-   uvicorn main:app --reload
-   ```
+*   **`navigator/`**: Contains the main orchestration and AI logic.
+    *   `orchestrator.py`: The central coordinator.
+    *   `web_navigator.py`: Manages browser interaction via Selenium and coordinates code generation/execution for plan steps.
+    *   `brain/`: Houses the specialized LLM agents (Planner, Code Assistant, API Reverse Engineer).
+    *   `memory/`: Handles semantic indexing and retrieval of learned information.
+*   **`core/`**: Provides shared utilities and plugins.
+    *   `plugins/`: Contains wrappers for external tools/APIs (Selenium Manager, Ollama Client).
+    *   `database/`: Manages the SQLite database for storing learned information and API requests.
+*   **`main.py`**: A FastAPI application providing an API interface to the Navigator.
+*   **`real_testing.py`**: A command-line script for testing the Navigator with specific prompts.
+
+## Setup
+
+1.  **Clone the repository:**
+    ```bash
+    git clone <repository-url>
+    cd ultimate-ai
+    ```
+
+2.  **Install dependencies:**
+    This project uses `uv` for package management.
+    ```bash
+    # Install uv if you haven't already
+    pip install uv
+    # Create a virtual environment and install dependencies
+    uv venv
+    uv pip install -r requirements.txt
+    # Activate the environment (example for bash/zsh)
+    source .venv/bin/activate 
+    # (or .venv\Scripts\activate on Windows)
+    ```
+
+3.  **Set up Ollama:**
+    *   Ensure you have Ollama installed and running. See [Ollama Website](https://ollama.com/).
+    *   Pull the required models (names can be configured via environment variables, defaults shown):
+        ```bash
+        ollama pull hermes-3 # Or your GENERAL_TEXT_MODEL
+        ollama pull granite-code:8b # Or your CODING_MODEL
+        ollama pull deepseek-r1:8b # Or your REASONING_MODEL
+        ollama pull mxbai-embed-large # Or your EMBEDDING_MODEL
+        ```
+    *   Verify the Ollama server is accessible from the project environment. The default URL used is `http://<ollama-host>:11434/api` (check `core/plugins/apis/ollama_client.py`). If running Ollama in WSL and the project on Windows, ensure the correct IP address is used.
+
+4.  **Environment Variables:**
+    Create a `.env` file in the project root or set environment variables directly. These configure the Ollama models used:
+    ```dotenv
+    # .env file
+    # Replace with the exact names from 'ollama list' if different
+    GENERAL_TEXT_MODEL=hermes-3 
+    CODING_MODEL=granite-code:8b
+    REASONING_MODEL=deepseek-r1:8b
+    EMBEDDING_MODEL=mxbai-embed-large
+    ```
+
+5.  **Initialize Database:**
+    The project uses a SQLite database (`ultimate_ai.db`). It should be created automatically, but you can ensure it's set up by running:
+    ```bash
+    uv run python init_db.py 
+    ```
 
 ## Usage
-### Analyze a Webpage
-Send a POST request to `/analyze-webpage` with a JSON body:
-```json
-{
-  "url": "https://example.com",
-  "context": "Summarize the main points."
-}
-```
-**Response:**
-```json
-{
-  "content": "...summary...",
-  "source": "https://example.com"
-}
-```
 
-### Generate Text with a Specific Model
-POST `/generate/{model_type}` with query parameter `prompt`:
-- `model_type`: one of `general`, `coding`, `embedding`, `reasoning`
+There are two main ways to interact with the system:
 
-Example:
-```
-POST /generate/reasoning?prompt=Explain+quantum+computing
-```
+1.  **Command-Line Testing (`real_testing.py`):**
+    Use this script for quick tests with a specific goal.
+    ```bash
+    uv run python real_testing.py --prompt "Your web goal here" 
+    
+    # Example:
+    uv run python real_testing.py --prompt "Search DuckDuckGo for recent AI news"
+    ```
+    This will run the full orchestration process for the given prompt.
 
-## Extending
-- Add new plugins in `core/plugins/` for additional automation or API integrations.
-- Update `.env` to add or change LLM models.
+2.  **FastAPI Application (`main.py`):**
+    Provides a web API for more structured interaction.
+    ```bash
+    # Start the FastAPI server
+    uv run uvicorn main:app --reload 
+    ```
+    Access the API documentation at `http://127.0.0.1:8000/docs`. Key endpoints include:
+    *   `/navigate` (POST): Starts a background task to achieve a web goal.
+    *   `/generate` (POST): Simple text generation via Ollama.
+    *   `/api/search` (GET): Search the memory for stored API patterns.
+    *   `/memory/search` (GET): Perform a semantic search over the learned memory.
 
-## License
-MIT License
+## Future Plans
+
+See `future_plans.md` for planned improvements and features.
